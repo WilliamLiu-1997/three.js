@@ -80,6 +80,7 @@
 				geometry.translate(0, 0.5, 0);
 				material = new THREE.MeshPhongMaterial({
 					color: 0xffffff,
+					side:THREE.DoubleSide
 				});
 
 				meshes = new THREE.Object3D();
@@ -99,13 +100,7 @@
 				scene.add(meshes);
 
 				var planegeometry = new THREE.PlaneGeometry(2000, 2000);
-				var planematerial = new THREE.MeshBasicMaterial({
-					color: 0xaaaaaa,
-					side: THREE.DoubleSide,
-					transparent: true,
-					opacity: 0.75,
-				});
-				plane = new THREE.Mesh(planegeometry, planematerial);
+				plane = new THREE.Mesh(planegeometry, material);
 				plane.rotation.x = Math.PI / 2;
 				plane.position.y = -0.01;
 				meshes.add(plane);
@@ -137,7 +132,7 @@
 				for(let child of meshes.children){
 					material.transparent=gui_params.transparent;
 					material.opacity=gui_params.opacity;
-					material.alphaMap=gui_params.alphaMap==="None"?null:alpha_map;
+					material.alphaMap=gui_params.alphaMap=="None"?null:alpha_map;
 				}
 			}
 
