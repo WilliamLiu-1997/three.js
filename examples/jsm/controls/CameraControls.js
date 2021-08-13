@@ -243,7 +243,6 @@ class CameraControls extends EventDispatcher {
                 look.add(scope.look);
                 scope.object.lookAt(look);
 
-
                 if (scope.enableDamping === true) {
 
                     angleXDelta *= (1 - scope.dampingFactor * 1.2);
