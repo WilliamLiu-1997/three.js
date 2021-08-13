@@ -33,7 +33,7 @@
 
 			import { CameraControls } from "./jsm/controls/CameraControls.js";
 
-			let camera, controls, scene, renderer, gui;
+			let camera, controls, scene, renderer, gui, point, plane, meshes;
 
 			init();
 			//render(); // remove when using next line for animation loop (requestAnimationFrame)
@@ -43,7 +43,10 @@
 				scene = new THREE.Scene();
 				scene.background = new THREE.Color(0x333333);
 
-				renderer = new THREE.WebGLRenderer({ antialias: true });
+				renderer = new THREE.WebGLRenderer({
+					antialias: true,
+					logarithmicDepthBuffer: true,
+				});
 				renderer.setPixelRatio(window.devicePixelRatio);
 				renderer.setSize(window.innerWidth, window.innerHeight);
 				document.body.appendChild(renderer.domElement);
@@ -64,30 +67,39 @@
 
 				// world
 
-				const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+				const geometry = new THREE.CylinderGeometry(1, 1, 1, 32);
 				geometry.translate(0, 0.5, 0);
 				const material = new THREE.MeshPhongMaterial({
 					color: 0xffffff,
-					flatShading: true,
 				});
 
-				for (let i = 0; i < 500; i++) {
-					const mesh = new THREE.Mesh(geometry, material);
-					mesh.position.x = Math.random() * 1600 - 800;
+				meshes = new THREE.Object3D();
+
+				for (let i = 0; i < 100; i++) {
+					let mesh = new THREE.Mesh(geometry, material);
+					mesh.position.x = Math.random() * 1800 - 900;
 					mesh.position.y = 0;
-					mesh.position.z = Math.random() * 1600 - 800;
-					mesh.scale.x = 20;
-					mesh.scale.y = Math.random() * 80 + 10;
-					mesh.scale.z = 20;
+					mesh.position.z = Math.random() * 1800 - 900;
+					mesh.scale.x = 10;
+					mesh.scale.y = Math.random() * 100 + 100;
+					mesh.scale.z = 10;
 					mesh.updateMatrix();
 					mesh.matrixAutoUpdate = false;
-					scene.add(mesh);
+					meshes.add(mesh);
 				}
+				scene.add(meshes);
 
-				var helper = new THREE.GridHelper(2000, 100);
-				helper.material.opacity = 0.25;
-				helper.material.transparent = true;
-				scene.add(helper);
+				var planegeometry = new THREE.PlaneGeometry(2000, 2000);
+				var planematerial = new THREE.MeshBasicMaterial({
+					color: 0xaaaaaa,
+					side: THREE.DoubleSide,
+					transparent: true,
+					opacity: 0.75,
+				});
+				plane = new THREE.Mesh(planegeometry, planematerial);
+				plane.rotation.x = Math.PI / 2;
+				plane.position.y = -0.01;
+				meshes.add(plane);
 
 				// lights
 
@@ -95,20 +107,48 @@
 				dirLight1.position.set(1, 1, 1);
 				scene.add(dirLight1);
 
-				const dirLight2 = new THREE.DirectionalLight(0xffffff * Math.random());
+				const dirLight2 = new THREE.DirectionalLight(0x00ffff * Math.random());
 				dirLight2.position.set(-1, -1, -1);
 				scene.add(dirLight2);
 
 				const ambientLight = new THREE.AmbientLight(0x222222);
 				scene.add(ambientLight);
 
+				var point_geo = new THREE.SphereGeometry(5, 32, 32);
+				var point_material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+				point = new THREE.Mesh(point_geo, point_material);
+				point.material.visible = false;
+				scene.add(point);
+
 				//
 
 				window.addEventListener("resize", onWindowResize);
+				window.addEventListener("mousedown", onmouseDown);
 
 				gui = new GUI();
 				gui.add(controls, "dynamicSensibility");
-				gui.add(controls, "sensibility", 1, 1500);
+				gui.add(controls, "sensibility", 1, 2000);
+				gui.add(controls, "reset").name("Reset Camera");
+			}
+
+			function onmouseDown(event) {
+				if (event.button !== 0) return;
+
+				let pointer = new THREE.Vector2();
+				pointer.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+				pointer.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+				let raycaster = new THREE.Raycaster();
+				raycaster.setFromCamera(pointer, camera);
+				var intersects = raycaster.intersectObject(meshes, true);
+				if (intersects.length > 0) {
+					point.position.copy(intersects[0].point);
+					point.material.visible = true;
+					controls.target = intersects[0].point;
+				} else {
+					point.material.visible = false;
+					controls.target = false;
+				}
 			}
 
 			function onWindowResize() {

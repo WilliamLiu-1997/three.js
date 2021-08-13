@@ -1,19 +1,22 @@
 import {
     EventDispatcher,
     MOUSE,
-    Quaternion,
     Vector2,
-    Vector3
+    Vector3,
+    Spherical,
+    Plane
 } from '../../../build/three.module.js';
+
+//Author: William https://github.com/WilliamLiu-1997
 
 // This set of controls performs Rotating, dollying (zooming for OrthographicCamera), and panning.
 // Pan up / down / left / right  - right mouse, or WASD keys / touch: three finger swipe
 // Dolly forward / backward  - mousewheel or WASD keys / touch: two finger spread or squish
-// Rotate  - left mouse, or arrow keys / touch: one finger move
+// Rotate  - middle mouse, or arrow keys / touch: one finger move
 
 // Compared to OrbitControls:
 // 1. It can dolly forward/backward (instead of dolly in/out) and pan left/right/up/down.
-// 2. Rotation is centered on the camera itself.
+// 2. Rotation is centered on the camera itself by default. If the target is set, the rotation will be centered on the target.
 
 class CameraControls extends EventDispatcher {
 
@@ -26,9 +29,12 @@ class CameraControls extends EventDispatcher {
 
         this.stop = false;
 
-        this.o = new Vector3(0, 0, 0)
+        this.o = new Vector3(0, 0, 0);
 
         this.object = object;
+
+        //The target of the focus. Tt should be set a vector or false. If a vector is given, the rotation will be centered on it.
+        this.target = false;
 
         // The sensibility of panning and Dolly
         this.sensibility = 1;
@@ -43,10 +49,10 @@ class CameraControls extends EventDispatcher {
         // Set to true to enable damping (inertia)
         // If damping is enabled, you must call controls.update() in your animation loop
         this.enableDamping = false;
-        this.dampingFactor = 0.1;
+        this.dampingFactor = 0.05;
 
-        // "look" sets the direction of the focus
-        this.look = new Vector3();
+        // "look" sets the direction of the focus, this should not be changed
+        this.look = new Vector3(this.o.clone().sub(this.object.position)).normalize();
 
         // How far you can dolly and pan ( PerspectiveCamera only )
         this.maxDistance = Infinity;
@@ -68,7 +74,7 @@ class CameraControls extends EventDispatcher {
         // Set to false to disable panning
         this.enablePan = true;
         this.keyPanSpeed = 1.0;// pixels moved per arrow key push
-        this.keyRotateSpeed = 1.0;
+        this.keyRotateSpeed = 1.3;
 
         // Set to true to automatically rotate
         // If auto-rotate is enabled, you must call controls.update() in your animation loop
@@ -82,7 +88,7 @@ class CameraControls extends EventDispatcher {
         this.keys = { TURNLEFT: 37, TURNUP: 38, TURNRIGHT: 39, TURNBOTTOM: 40, FORWARD: 87, BACKWARD: 83, LEFT: 65, RIGHT: 68 };
 
         // Mouse buttons
-        this.mouseButtons = { PAN: MOUSE.RIGHT, ZOOM: false, ROTATE: MOUSE.LEFT };
+        this.mouseButtons = { PAN: MOUSE.RIGHT, ZOOM: false, ROTATE: MOUSE.MIDDLE };
 
         // for reset
         this.position0 = this.object.position.clone();
@@ -106,6 +112,7 @@ class CameraControls extends EventDispatcher {
         };
 
         this.reset = function () {
+            scope.target = false;
 
             scope.object.position.copy(scope.position0);
             scope.object.zoom = scope.zoom0;
@@ -125,16 +132,18 @@ class CameraControls extends EventDispatcher {
         // this method is exposed, but perhaps it would be better if we can make it private...
         this.update = function () {
 
-            var lastPosition = new Vector3();
-            var lastQuaternion = new Quaternion();
-
             return function update() {
 
                 var position = scope.object.position;
+                var target = scope.target;
 
                 if (scope.dynamicSensibility) {
 
-                    scope.sensibility = Math.max(1, scope.object.position.distanceTo(scope.o));
+                    if (target) {
+                        scope.sensibility = Math.max(0.1, scope.object.position.distanceTo(target));
+                    }
+                    else { scope.sensibility = Math.max(1, Math.abs(scope.object.position.y)); }
+
 
                 }
 
@@ -163,24 +172,72 @@ class CameraControls extends EventDispatcher {
 
                 }
 
+                let last_look = scope.look.clone();
+
+                var low, high;
+                if (angleY_gap > 0) {
+                    low = angleY_gap;
+                    high = -0.0001;
+                } else {
+                    low = 0.0001;
+                    high = angleY_gap;
+                }
 
                 if (scope.enableDamping) {
 
-                    scope.angleX += angleXDelta * scope.dampingFactor * 1.5;
-                    scope.angleY = Math.max(-Math.PI / 2.001, Math.min(scope.angleY + angleYDelta * scope.dampingFactor * 1.5, Math.PI / 2.001))
+                    scope.angleX += angleXDelta * scope.dampingFactor * 1.2;
+                    scope.angleY = Math.max(-Math.PI / 2 + 0.001 + low, Math.min(scope.angleY + angleYDelta * scope.dampingFactor * 1.2, Math.PI / 2 - 0.001 + high));
 
                 } else {
 
                     scope.angleX += angleXDelta * 1.5;
-                    scope.angleY = Math.max(-Math.PI / 2.001, Math.min(scope.angleY + angleYDelta * 1.5, Math.PI / 2.001))
+                    scope.angleY = Math.max(-Math.PI / 2 + 0.001 + low, Math.min(scope.angleY + angleYDelta * 1.5, Math.PI / 2 - 0.001 + high));
 
                 }
 
-                scope.look.x = Math.sin(scope.angleX) * (Math.PI / 2 - Math.abs(scope.angleY))
-                scope.look.z = -Math.cos(scope.angleX) * (Math.PI / 2 - Math.abs(scope.angleY))
-                scope.look.y = Math.sin(scope.angleY)
-                scope.look.normalize()
+                scope.look.x = Math.sin(scope.angleX) * Math.cos(scope.angleY);
+                scope.look.z = -Math.cos(scope.angleX) * Math.cos(scope.angleY);
+                scope.look.y = Math.sin(scope.angleY);
+                scope.look.normalize();
 
+                if (target) {
+
+                    let last_phi = Math.acos(last_look.y);
+                    let current_phi = Math.acos(scope.look.y);
+                    let last_theta = Math.atan2(last_look.x, last_look.z);
+                    let current_theta = Math.atan2(scope.look.x, scope.look.z);
+
+                    let plane = new Plane();
+                    let normal_ = new Vector3(0, 1, 0);
+                    plane.setFromCoplanarPoints(position, position.clone().add(scope.look), position.clone().add(normal_));
+                    let target_point = new Vector3();
+                    plane.projectPoint(target, target_point);
+
+                    let gap = target_point.clone().sub(target);
+                    position.sub(gap);
+
+                    let Sphere = new Spherical();
+                    Sphere.setFromVector3(position.clone().sub(target));
+                    Sphere.phi -= current_phi - last_phi;
+                    angleY_gap = scope.angleY - Sphere.phi + Math.PI / 2;
+
+                    let Sphere_location = new Vector3();
+                    Sphere_location.setFromSpherical(Sphere).add(target);
+                    position.copy(Sphere_location);
+                    position.add(gap);
+
+                    let Sphere_ = new Spherical();
+                    Sphere_.setFromVector3(position.clone().sub(target));
+                    Sphere_.theta += current_theta - last_theta;
+
+                    let Sphere_location_ = new Vector3();
+                    Sphere_location_.setFromSpherical(Sphere_).add(target);
+                    position.copy(Sphere_location_);
+
+                }
+                else {
+                    angleY_gap = 0;
+                }
 
                 let look = position.clone();
                 look.add(scope.look);
@@ -188,8 +245,8 @@ class CameraControls extends EventDispatcher {
 
                 if (scope.enableDamping === true) {
 
-                    angleXDelta *= (1 - scope.dampingFactor * 1.5);
-                    angleYDelta *= (1 - scope.dampingFactor * 1.5);
+                    angleXDelta *= (1 - scope.dampingFactor * 1.2);
+                    angleYDelta *= (1 - scope.dampingFactor * 1.2);
                     panOffset.multiplyScalar(1 - scope.dampingFactor);
 
                 } else {
@@ -199,21 +256,6 @@ class CameraControls extends EventDispatcher {
                     panOffset.set(0, 0, 0);
 
                 }
-
-                // update condition is:
-                // min(camera displacement, camera rotation in radians)^2 > EPS
-                // using small-angle approximation cos(x/2) = 1 - x^2 / 8
-                if (zoomChanged || lastPosition.distanceToSquared(scope.object.position) > EPS || 8 * (1 - lastQuaternion.dot(scope.object.quaternion)) > EPS) {
-
-                    scope.dispatchEvent(changeEvent);
-                    lastPosition.copy(scope.object.position);
-                    lastQuaternion.copy(scope.object.quaternion);
-                    zoomChanged = false;
-                    return true;
-
-                }
-
-                return false;
 
             };
 
@@ -250,12 +292,11 @@ class CameraControls extends EventDispatcher {
 
         var state = STATE.NONE;
 
-        var EPS = 0.000001;
         var angleXDelta = 0;
         var angleYDelta = 0;
+        var angleY_gap = 0;
 
         var panOffset = new Vector3();
-        var zoomChanged = false;
 
         var rotateStart = new Vector2();
         var rotateEnd = new Vector2();
@@ -275,23 +316,17 @@ class CameraControls extends EventDispatcher {
 
         }
 
-        function getZoomScale() {
-
-            return Math.pow(0.95, scope.zoomSpeed);
-
-        }
-
         function rotate(angleX, angleY) {
 
             if (scope.invertRotate) {
 
-                angleXDelta += angleX * 0.64;
-                angleYDelta -= angleY * 0.32;
+                angleXDelta -= angleX * 0.64;
+                angleYDelta += angleY * 0.32;
 
             } else {
 
-                angleXDelta -= angleX * 0.64;
-                angleYDelta += angleY * 0.32;
+                angleXDelta += angleX * 0.64;
+                angleYDelta -= angleY * 0.32;
 
             }
 
@@ -380,11 +415,11 @@ class CameraControls extends EventDispatcher {
 
             if (scope.object.isPerspectiveCamera) {
 
-                moveForward(-50 * scope.sensibility * dollyScale / element.clientHeight, scope.object.matrix);
+                moveForward(-100 * scope.sensibility * dollyScale / element.clientHeight, scope.object.matrix);
 
             } else if (scope.object.isOrthographicCamera) {
 
-                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
+                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * Math.pow(0.95, dollyScale)));
                 scope.object.updateProjectionMatrix();
                 zoomChanged = true;
 
@@ -403,11 +438,11 @@ class CameraControls extends EventDispatcher {
 
             if (scope.object.isPerspectiveCamera) {
 
-                moveForward(50 * scope.sensibility * dollyScale / element.clientHeight, scope.object.matrix);
+                moveForward(100 * scope.sensibility * dollyScale / element.clientHeight, scope.object.matrix);
 
             } else if (scope.object.isOrthographicCamera) {
 
-                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
+                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / Math.pow(0.95, dollyScale)));
                 scope.object.updateProjectionMatrix();
                 zoomChanged = true;
 
@@ -466,11 +501,11 @@ class CameraControls extends EventDispatcher {
 
             if (dollyDelta.y > 0) {
 
-                dollyForward(getZoomScale());
+                dollyForward(scope.zoomSpeed);
 
             } else if (dollyDelta.y < 0) {
 
-                dollyBackward(getZoomScale());
+                dollyBackward(scope.zoomSpeed);
 
             }
 
@@ -502,11 +537,11 @@ class CameraControls extends EventDispatcher {
 
             if (event.deltaY < 0) {
 
-                dollyBackward(getZoomScale());
+                dollyBackward(scope.zoomSpeed);
 
             } else if (event.deltaY > 0) {
 
-                dollyForward(getZoomScale());
+                dollyForward(scope.zoomSpeed);
 
             }
 
@@ -533,7 +568,7 @@ class CameraControls extends EventDispatcher {
                         break;
 
                     case scope.keys.TURNLEFT:
-                        rotate(-Math.PI / element.clientWidth * scope.keyRotateSpeed, 0);
+                        rotate(- Math.PI / element.clientWidth * scope.keyRotateSpeed, 0);
                         scope.update();
                         break;
 
@@ -551,12 +586,12 @@ class CameraControls extends EventDispatcher {
                 switch (event.keyCode) {
 
                     case scope.keys.FORWARD:
-                        dollyBackward(getZoomScale() * scope.keyPanSpeed);;
+                        dollyBackward(scope.zoomSpeed * scope.keyPanSpeed);;
                         scope.update();
                         break;
 
                     case scope.keys.BACKWARD:
-                        dollyForward(getZoomScale() * scope.keyPanSpeed);;
+                        dollyForward(scope.zoomSpeed * scope.keyPanSpeed);;
                         scope.update();
                         break;
 
@@ -627,11 +662,11 @@ class CameraControls extends EventDispatcher {
 
             if (dollyDelta.y > 0) {
 
-                dollyBackward(getZoomScale());
+                dollyBackward(scope.zoomSpeed / 2);
 
             } else if (dollyDelta.y < 0) {
 
-                dollyForward(getZoomScale());
+                dollyForward(scope.zoomSpeed / 2);
 
             }
 
