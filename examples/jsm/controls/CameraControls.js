@@ -49,7 +49,7 @@ class CameraControls extends EventDispatcher {
         // Set to true to enable damping (inertia)
         // If damping is enabled, you must call controls.update() in your animation loop
         this.enableDamping = false;
-        this.dampingFactor = 0.05;
+        this.dampingFactor = 0.1;
 
         // "look" sets the direction of the focus, this should not be changed
         this.look = this.o.clone().sub(this.object.position).normalize();
@@ -74,7 +74,7 @@ class CameraControls extends EventDispatcher {
         // Set to false to disable panning
         this.enablePan = true;
         this.keyPanSpeed = 1.0;// pixels moved per arrow key push
-        this.keyRotateSpeed = 1.3;
+        this.keyRotateSpeed = 1.0;
 
         // Set to true to automatically rotate
         // If auto-rotate is enabled, you must call controls.update() in your animation loop
@@ -92,6 +92,7 @@ class CameraControls extends EventDispatcher {
 
         // for reset
         this.position0 = this.object.position.clone();
+        this.target0 = this.target ? this.target.clone() : false;
         this.zoom0 = this.object.zoom;
         this.look0 = this.look.clone();
         this.angleX0 = this.angleX;
@@ -104,6 +105,7 @@ class CameraControls extends EventDispatcher {
         this.saveState = function () {
 
             scope.position0.copy(scope.object.position);
+            scope.target0 = scope.target ? scope.target.clone() : false;
             scope.zoom0 = scope.object.zoom;
             scope.look0.copy(scope.look);
             scope.angleX0 = scope.angleX;
@@ -112,9 +114,9 @@ class CameraControls extends EventDispatcher {
         };
 
         this.reset = function () {
-            scope.target = false;
 
             scope.object.position.copy(scope.position0);
+            scope.target = scope.target0 ? scope.target0.clone() : false;
             scope.object.zoom = scope.zoom0;
             scope.look.copy(scope.look0);
             scope.angleX = scope.angleX0;
@@ -168,10 +170,9 @@ class CameraControls extends EventDispatcher {
 
                 if (distance > scope.maxDistance) {
 
-                    position.multiplyScalar(scope.maxDistance / distance);
+                    position.add(position.clone().multiplyScalar(scope.maxDistance / distance).sub(position).multiplyScalar(0.1));
 
                 }
-
 
                 var low, high;
                 if (angleY_gap > 0) {
@@ -203,6 +204,14 @@ class CameraControls extends EventDispatcher {
 
                 if (target) {
 
+                    let Sphere_ = new Spherical();
+                    Sphere_.setFromVector3(position.clone().sub(target));
+                    Sphere_.theta -= scope.angleX - last_angleX;
+
+                    let Sphere_location_ = new Vector3();
+                    Sphere_location_.setFromSpherical(Sphere_).add(target);
+                    position.copy(Sphere_location_);
+
                     let plane = new Plane();
                     let normal_ = new Vector3(0, 1, 0);
                     plane.setFromCoplanarPoints(position, position.clone().add(scope.look), position.clone().add(normal_));
@@ -221,14 +230,6 @@ class CameraControls extends EventDispatcher {
                     Sphere_location.setFromSpherical(Sphere).add(target);
                     position.copy(Sphere_location);
                     position.add(gap);
-
-                    let Sphere_ = new Spherical();
-                    Sphere_.setFromVector3(position.clone().sub(target));
-                    Sphere_.theta -= scope.angleX - last_angleX;
-
-                    let Sphere_location_ = new Vector3();
-                    Sphere_location_.setFromSpherical(Sphere_).add(target);
-                    position.copy(Sphere_location_);
 
                 }
                 else {
