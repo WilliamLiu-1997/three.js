@@ -510,7 +510,7 @@ class TransformControls extends Object3D {
 
 			// Apply rotation snap
 
-			if ( this.rotationSnap ) this.rotationAngle = Math.round( this.rotationAngle / this.rotationSnap ) * this.rotationSnap;
+			if ( this.rotationSnap ) this.rotationAngle = Math.round( this.rotationAngle / this.rotationSnap ) * this.rotationSnap/10;
 
 			// Apply rotate
 			if ( space === 'local' && axis !== 'E' && axis !== 'XYZE' ) {
