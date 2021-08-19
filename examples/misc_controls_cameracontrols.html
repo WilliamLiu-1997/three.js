@@ -34,6 +34,7 @@
 			import { CameraControls } from "./jsm/controls/CameraControls.js";
 
 			let camera, controls, scene, renderer, gui, point, plane, meshes;
+			let ctrl = false;
 
 			init();
 			//render(); // remove when using next line for animation loop (requestAnimationFrame)
@@ -129,10 +130,30 @@
 				gui.add(controls, "dynamicSensibility");
 				gui.add(controls, "sensibility", 1, 2000);
 				gui.add(controls, "reset").name("Reset Camera");
+
+				window.addEventListener("keydown", onKeyDown, false);
+				window.addEventListener("keyup", onKeyUp, false);
+			}
+
+			function onKeyDown(e) {
+				switch (e.keyCode) {
+					case 17:
+						ctrl = true;
+						controls.mouseButtons.ROTATE = THREE.MOUSE.LEFT;
+						break;
+				}
+			}
+			function onKeyUp(e) {
+				switch (e.keyCode) {
+					case 17:
+						ctrl = false;
+						controls.mouseButtons.ROTATE = THREE.MOUSE.MIDDLE;
+						break;
+				}
 			}
 
 			function onmouseDown(event) {
-				if (event.button !== 0) return;
+				if (event.button !== 0 || ctrl) return;
 
 				let pointer = new THREE.Vector2();
 				pointer.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
