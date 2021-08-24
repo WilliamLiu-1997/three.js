@@ -70,6 +70,7 @@
 						metalness: 0,
 						transmission: 0,
 					});
+					material.needsUpdate=true;
 
 					let mesh = new THREE.Mesh(sphere, material);
 					mesh.position.set(100, 0, 0);
@@ -86,14 +87,15 @@
 						metalness: 0,
 						transmission: 0.01,
 					});
+					material1.needsUpdate=true;
 
 					mesh = new THREE.Mesh(sphere, material1);
 					mesh.position.set(-100, 0, 0);
 					scene.add(mesh);
 
 					gui = new GUI();
-					gui.add(material, "transmission", 0, 1, 0.01);
-					gui.add(material1, "transmission", 0, 1, 0.01);
+					gui.add(material, "transmission", 0, 1, 0.01).onChange(()=>{material.needsUpdate=true;});
+					gui.add(material1, "transmission", 0, 1, 0.01).onChange(()=>{});
 				});
 
 				//renderer
